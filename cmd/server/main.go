@@ -26,8 +26,37 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating new channel: %s", err)
 	}
+
+	// Exchange
+	err = chanel.ExchangeDeclare(
+		routing.ExchangePerilDirect,
+		"direct",
+		true, false, false, false, nil)
+
+	// Queue
+	_, err = chanel.QueueDeclare("pause_test", true, false, false, false, nil)
+	if err != nil {
+		log.Fatalf("Error creating new channel: %s", err)
+	}
+
+	// Bind
+	chanel.QueueBind(
+		"pause_test",
+		routing.PauseKey,
+		routing.ExchangePerilDirect,
+		false, nil,
+	)
+
+	// Data
 	data := routing.PlayingState{IsPaused: true}
-	ps.PublishJson(chanel, routing.ExchangePerilDirect, routing.PauseKey, data)
+	if err != nil {
+		log.Fatalf("Error creating new channel: %s", err)
+	}
+
+	err = ps.PublishJson(chanel, routing.ExchangePerilDirect, routing.PauseKey, data)
+	if err != nil {
+		log.Fatalf("Error creating new channel: %s", err)
+	}
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
