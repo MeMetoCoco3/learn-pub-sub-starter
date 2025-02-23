@@ -1,13 +1,15 @@
 package main
 
 import (
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	ps "github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 
-	routing "github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"log"
 	"os"
 	"os/signal"
+
+	routing "github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
@@ -32,18 +34,38 @@ func main() {
 		routing.ExchangePerilDirect,
 		"direct",
 		true, false, false, false, nil)
+	if err != nil {
+		log.Fatalf("Error creating new channel: %s", err)
+	}
 
+	err = chanel.ExchangeDeclare(
+		routing.ExchangePerilTopic,
+		"topic",
+		true, false, false, false, nil)
+	if err != nil {
+		log.Fatalf("Error creating new channel: %s", err)
+	}
 	// Queue
 	_, err = chanel.QueueDeclare("pause_test", true, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Error creating new channel: %s", err)
 	}
 
+	_, err = chanel.QueueDeclare(routing.GameLogSlug, true, false, false, false, nil)
+	if err != nil {
+		log.Fatalf("Error creating new channel: %s", err)
+	}
 	// Bind
 	chanel.QueueBind(
 		"pause_test",
 		routing.PauseKey,
 		routing.ExchangePerilDirect,
+		false, nil,
+	)
+	chanel.QueueBind(
+		routing.GameLogSlug,
+		"game_logs.*",
+		routing.ExchangePerilTopic,
 		false, nil,
 	)
 
@@ -56,6 +78,41 @@ func main() {
 	err = ps.PublishJson(chanel, routing.ExchangePerilDirect, routing.PauseKey, data)
 	if err != nil {
 		log.Fatalf("Error creating new channel: %s", err)
+	}
+
+	gamelogic.PrintServerHelp()
+	gameOn := true
+	for gameOn {
+		input := gamelogic.GetInput()
+		if len(input) == 0 {
+			continue
+		}
+
+		for _, word := range input {
+			switch word {
+			case "pause":
+				log.Println("Pausing the game")
+				data := routing.PlayingState{IsPaused: true}
+				ps.PublishJson(chanel, routing.ExchangePerilDirect, routing.PauseKey, data)
+				break
+
+			case "resume":
+				log.Println("Resuming the game")
+				data := routing.PlayingState{IsPaused: false}
+				ps.PublishJson(chanel, routing.ExchangePerilDirect, routing.PauseKey, data)
+				break
+
+			case "quit":
+				log.Println("Quiting the game")
+				gameOn = false
+
+			default:
+				log.Printf("Not expected command: %s", word)
+
+			}
+
+		}
+
 	}
 
 	signalChan := make(chan os.Signal, 1)
