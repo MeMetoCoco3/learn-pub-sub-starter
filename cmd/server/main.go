@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
-	ps "github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
-
 	"log"
 	"os"
 	"os/signal"
+
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
+	ps "github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 
 	routing "github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -94,13 +94,11 @@ func main() {
 				log.Println("Pausing the game")
 				data := routing.PlayingState{IsPaused: true}
 				ps.PublishJson(chanel, routing.ExchangePerilDirect, routing.PauseKey, data)
-				break
 
 			case "resume":
 				log.Println("Resuming the game")
 				data := routing.PlayingState{IsPaused: false}
 				ps.PublishJson(chanel, routing.ExchangePerilDirect, routing.PauseKey, data)
-				break
 
 			case "quit":
 				log.Println("Quiting the game")
@@ -110,7 +108,6 @@ func main() {
 				log.Printf("Not expected command: %s", word)
 
 			}
-
 		}
 
 	}
@@ -119,6 +116,4 @@ func main() {
 	signal.Notify(signalChan, os.Interrupt)
 	sig := <-signalChan
 	log.Printf("Signal was recieved: %s\n", sig.String())
-
-	return
 }

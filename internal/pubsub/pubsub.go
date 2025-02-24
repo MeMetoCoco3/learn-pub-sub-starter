@@ -85,7 +85,6 @@ func DeclareAndBind(
 		autoDelete = true
 		exclusive = true
 	}
-
 	queue, err := chann.QueueDeclare(queueName, durable, autoDelete, exclusive, false, nil)
 	if err != nil {
 		return nil, amqp.Queue{}, err
