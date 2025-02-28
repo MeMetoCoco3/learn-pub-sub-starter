@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
-	ps "github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	"github.com/rabbitmq/amqp091-go"
 )
@@ -25,12 +25,12 @@ func main() {
 	}
 
 	queueName := fmt.Sprintf("%s.%s", routing.PauseKey, userName)
-	chann, queue, err := ps.DeclareAndBind(
+	chann, queue, err := pubsub.DeclareAndBind(
 		con,
 		routing.ExchangePerilDirect,
 		queueName,
 		routing.PauseKey,
-		ps.TRANSIENT)
+		pubsub.TRANSIENT)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,24 +38,35 @@ func main() {
 
 	game := gamelogic.NewGameState(userName)
 
-	// We subscribe the client to the queues
-	err = ps.SubscribeJSON(
+	// We subscribe the client to the exchanges
+	err = pubsub.SubscribeJSON(
 		con,
 		routing.ExchangePerilTopic,
-		routing.ArmyMovesPrefix+"."+userName,
+		routing.ArmyMovesPrefix+"."+game.GetUsername(),
 		routing.ArmyMovesPrefix+".*",
-		ps.TRANSIENT,
-		handlerMove(game))
+		pubsub.TRANSIENT,
+		handlerMove(game, chann),
+	)
+	if err != nil {
+		log.Panic(err)
+	}
+	err = pubsub.SubscribeJSON(
+		con,
+		routing.ExchangePerilTopic,
+		string(routing.WarRecognitionsPrefix),
+		routing.WarRecognitionsPrefix+".*",
+		pubsub.DURABLE,
+		handlerWar(game))
 	if err != nil {
 		log.Panic(err)
 	}
 
-	err = ps.SubscribeJSON(
+	err = pubsub.SubscribeJSON(
 		con,
 		routing.ExchangePerilDirect,
 		queueName,
 		routing.PauseKey,
-		ps.TRANSIENT,
+		pubsub.TRANSIENT,
 		handlerPause(game))
 	if err != nil {
 		log.Panic(err)
@@ -82,9 +93,9 @@ func main() {
 				continue
 			}
 
-			err = ps.PublishJson(chann,
+			err = pubsub.PublishJson(chann,
 				routing.ExchangePerilTopic,
-				routing.ArmyMovesPrefix+"."+userName,
+				routing.ArmyMovesPrefix+"."+currentMove.Player.Username,
 				currentMove)
 			if err != nil {
 				log.Panic(err)
@@ -102,25 +113,5 @@ func main() {
 			log.Printf("Keyword not allowed: %s\n", input[0])
 		}
 
-	}
-	/*
-	   signalChan := make(chan os.Signal, 1)
-	   signal.Notify(signalChan, os.Interrupt)
-	   sig := <-signalChan
-	   log.Println(sig.String())
-	*/
-}
-
-func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
-	return func(ps routing.PlayingState) {
-		defer fmt.Print("> ")
-		gs.HandlePause(ps)
-	}
-}
-
-func handlerMove(gs *gamelogic.GameState) func(gamelogic.ArmyMove) {
-	return func(move gamelogic.ArmyMove) {
-		defer fmt.Println("> ")
-		gs.HandleMove(move)
 	}
 }

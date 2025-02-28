@@ -15,6 +15,9 @@ import (
 func main() {
 	log.Println("Starting Peril server...")
 
+	/*==============================
+	  CONNECTION
+	==============================*/
 	connectionString := "amqp://guest:guest@localhost:5672/"
 	con, err := amqp.Dial(connectionString)
 	if err != nil {
@@ -29,7 +32,9 @@ func main() {
 		log.Fatalf("Error creating new channel: %s", err)
 	}
 
-	// Exchange
+	/*==============================
+	    EXCHANGE
+		==============================*/
 	err = chanel.ExchangeDeclare(
 		routing.ExchangePerilDirect,
 		"direct",
@@ -45,7 +50,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating new channel: %s", err)
 	}
-	// Queue
+
+	/*==============================
+	    QUEUES
+		==============================*/
 	_, err = chanel.QueueDeclare("pause_test", true, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Error creating new channel: %s", err)
@@ -55,7 +63,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error creating new channel: %s", err)
 	}
-	// Bind
+
+	/*==============================
+	    BINDING
+		==============================*/
 	chanel.QueueBind(
 		"pause_test",
 		routing.PauseKey,
@@ -69,7 +80,9 @@ func main() {
 		false, nil,
 	)
 
-	// Data
+	/*==============================
+	    DATA
+		==============================*/
 	data := routing.PlayingState{IsPaused: true}
 	if err != nil {
 		log.Fatalf("Error creating new channel: %s", err)

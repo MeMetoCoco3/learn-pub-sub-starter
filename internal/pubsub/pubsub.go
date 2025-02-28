@@ -8,11 +8,20 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type QueueType int
+type (
+	QueueType int
+	AckType   int
+)
 
 const (
-	DURABLE = iota
+	DURABLE QueueType = iota
 	TRANSIENT
+)
+
+const (
+	Ack AckType = iota
+	NackRequeue
+	NackDiscard
 )
 
 func PublishJson[T any](ch *amqp.Channel, exchange, key string, val T) error {
@@ -20,12 +29,10 @@ func PublishJson[T any](ch *amqp.Channel, exchange, key string, val T) error {
 	if err != nil {
 		return err
 	}
-	ch.PublishWithContext(context.Background(), exchange, key, false, false, amqp.Publishing{
+	return ch.PublishWithContext(context.Background(), exchange, key, false, false, amqp.Publishing{
 		ContentType: "application/json",
 		Body:        bytes,
 	})
-
-	return nil
 }
 
 func SubscribeJSON[T any](
@@ -34,7 +41,7 @@ func SubscribeJSON[T any](
 	queueName,
 	key string,
 	queueType QueueType,
-	handler func(T),
+	handler func(T) AckType,
 ) error {
 	// Check if exist
 	chann, queue, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
@@ -55,9 +62,15 @@ func SubscribeJSON[T any](
 				log.Printf("Error found: %s", err)
 				continue
 			}
-			handler(v)
-			// Acknowledge the message and eliminate form queue
-			msg.Ack(false)
+			respose := handler(v)
+			switch respose {
+			case Ack:
+				msg.Ack(false)
+			case NackRequeue:
+				msg.Nack(false, true)
+			case NackDiscard:
+				msg.Nack(false, false)
+			}
 		}
 	}()
 	return nil
@@ -85,7 +98,16 @@ func DeclareAndBind(
 		autoDelete = true
 		exclusive = true
 	}
-	queue, err := chann.QueueDeclare(queueName, durable, autoDelete, exclusive, false, nil)
+	queue, err := chann.QueueDeclare(
+		queueName,
+		durable,
+		autoDelete,
+		exclusive,
+		false,
+		amqp.Table{
+			// Dice a Rabbit que ese es el exchange del deadletter
+			"x-dead-letter-exchange": "peril_dlx",
+		})
 	if err != nil {
 		return nil, amqp.Queue{}, err
 	}
