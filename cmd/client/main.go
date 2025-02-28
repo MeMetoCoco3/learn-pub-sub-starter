@@ -56,7 +56,7 @@ func main() {
 		string(routing.WarRecognitionsPrefix),
 		routing.WarRecognitionsPrefix+".*",
 		pubsub.DURABLE,
-		handlerWar(game))
+		handlerWar(game, chann))
 	if err != nil {
 		log.Panic(err)
 	}

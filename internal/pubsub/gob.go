@@ -3,34 +3,25 @@ package pubsub
 import (
 	"bytes"
 	"encoding/gob"
-	"time"
 )
 
-func encode(gl GameLog) ([]byte, error) {
+func EncodeGob[T any](v T) ([]byte, error) {
 	var buff bytes.Buffer
 	encoder := gob.NewEncoder(&buff)
-	err := encoder.Encode(gl)
+	err := encoder.Encode(v)
 	if err != nil {
 		return nil, err
 	}
 	return buff.Bytes(), nil
 }
 
-func decode(data []byte) (GameLog, error) {
-	var g GameLog
+func DecodeGob[T any](data []byte) (T, error) {
+	var v T
 	buff := bytes.NewBuffer(data)
 	decoder := gob.NewDecoder(buff)
-	err := decoder.Decode(&g)
+	err := decoder.Decode(&v)
 	if err != nil {
-		return g, err
+		return v, err
 	}
-	return g, nil
-}
-
-// don't touch below this line
-
-type GameLog struct {
-	CurrentTime time.Time
-	Message     string
-	Username    string
+	return v, nil
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -14,6 +15,14 @@ func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) pubsub.Ack
 	return func(ps routing.PlayingState) pubsub.AckType {
 		defer fmt.Print("> ")
 		gs.HandlePause(ps)
+		return pubsub.Ack
+	}
+}
+
+func handlerLogs() func(routing.GameLog) pubsub.AckType {
+	return func(logg routing.GameLog) pubsub.AckType {
+		defer fmt.Print("> ")
+		gamelogic.WriteLog(logg)
 		return pubsub.Ack
 	}
 }
@@ -48,23 +57,42 @@ func handlerMove(gs *gamelogic.GameState, chann *amqp091.Channel) func(gamelogic
 	}
 }
 
-func handlerWar(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub.AckType {
+func handlerWar(gs *gamelogic.GameState, chann *amqp091.Channel) func(gamelogic.RecognitionOfWar) pubsub.AckType {
 	return func(dw gamelogic.RecognitionOfWar) pubsub.AckType {
 		defer fmt.Print("> ")
-		warOutcome, _, _ := gs.HandleWar(dw)
+		warOutcome, winner, loser := gs.HandleWar(dw)
+		msg := ""
+		switch warOutcome {
+		case gamelogic.WarOutcomeOpponentWon, gamelogic.WarOutcomeYouWon:
+			msg = winner + " won a war against " + loser
+		case gamelogic.WarOutcomeDraw:
+			msg = "A war between " + winner + " and " + loser + " resulted in a draw"
+		}
+
 		switch warOutcome {
 		case gamelogic.WarOutcomeNotInvolved:
 			return pubsub.NackRequeue
 		case gamelogic.WarOutcomeNoUnits:
 			return pubsub.NackDiscard
-		case gamelogic.WarOutcomeOpponentWon:
-			return pubsub.Ack
-		case gamelogic.WarOutcomeYouWon:
-			return pubsub.Ack
-		case gamelogic.WarOutcomeDraw:
-			return pubsub.Ack
+		case gamelogic.WarOutcomeOpponentWon, gamelogic.WarOutcomeYouWon, gamelogic.WarOutcomeDraw:
 
+			// Sending Battle Logs
+			gamelog := routing.GameLog{
+				CurrentTime: time.Now(), Message: msg, Username: gs.Player.Username,
+			}
+			log.Println(dw.Attacker.Username)
+			log.Println(routing.GameLogSlug)
+			log.Println(dw.Attacker.Username)
+			if err := pubsub.PublishGob(chann,
+				routing.ExchangePerilTopic,
+				routing.GameLogSlug+"."+gs.Player.Username,
+				gamelog,
+			); err != nil {
+				return pubsub.NackRequeue
+			}
+			return pubsub.Ack
 		}
+
 		log.Println("Uknown war outcome")
 		return pubsub.NackDiscard
 	}

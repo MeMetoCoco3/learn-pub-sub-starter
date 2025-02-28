@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -54,12 +55,16 @@ func main() {
 	/*==============================
 	    QUEUES
 		==============================*/
-	_, err = chanel.QueueDeclare("pause_test", true, false, false, false, nil)
+	_, err = chanel.QueueDeclare(
+		"pause_test", true, false, false, false, nil)
 	if err != nil {
 		log.Fatalf("Error creating new channel: %s", err)
 	}
 
-	_, err = chanel.QueueDeclare(routing.GameLogSlug, true, false, false, false, nil)
+	_, err = chanel.QueueDeclare(
+		routing.GameLogSlug, true, false, false, false, amqp.Table{
+			"x-dead-letter-exchange": "peril_dlx",
+		})
 	if err != nil {
 		log.Fatalf("Error creating new channel: %s", err)
 	}
@@ -91,6 +96,22 @@ func main() {
 	err = ps.PublishJson(chanel, routing.ExchangePerilDirect, routing.PauseKey, data)
 	if err != nil {
 		log.Fatalf("Error creating new channel: %s", err)
+	}
+
+	err = ps.SubscribeGob(
+		con,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routing.GameLogSlug+".*",
+		ps.DURABLE,
+		func(logg routing.GameLog) ps.AckType {
+			defer fmt.Print("> ")
+			gamelogic.WriteLog(logg)
+			return ps.Ack
+		},
+	)
+	if err != nil {
+		log.Panic(err)
 	}
 
 	gamelogic.PrintServerHelp()
