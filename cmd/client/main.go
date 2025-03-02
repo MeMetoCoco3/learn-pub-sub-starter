@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -75,7 +77,8 @@ func main() {
 
 	for {
 		input := gamelogic.GetInput()
-		if len(input) == 0 {
+		numArgs := len(input)
+		if numArgs == 0 {
 			continue
 		}
 
@@ -106,9 +109,36 @@ func main() {
 			game.CommandStatus()
 		case "help":
 			gamelogic.PrintClientHelp()
-
 		case "quit":
 			gamelogic.PrintQuit()
+		case "spam":
+			if numArgs == 1 {
+				log.Println("usage: spam <number>")
+				continue
+			}
+
+			n, err := strconv.Atoi(input[1])
+			if err != nil {
+				log.Printf("Number not allowed: %s\n", input[1])
+				continue
+			}
+
+			for i := 0; i < n; i++ {
+				msg := gamelogic.GetMaliciousLog()
+				gameLog := routing.GameLog{
+					CurrentTime: time.Now(),
+					Username:    game.Player.Username,
+					Message:     msg,
+				}
+				log.Printf("ROUTING KEY IS: %s.%s\n", routing.GameLogSlug, game.Player.Username)
+				pubsub.PublishGob(
+					chann,
+					routing.ExchangePerilTopic,
+					routing.GameLogSlug+"."+game.Player.Username,
+					gameLog,
+				)
+			}
+
 		default:
 			log.Printf("Keyword not allowed: %s\n", input[0])
 		}

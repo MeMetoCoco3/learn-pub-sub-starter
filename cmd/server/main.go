@@ -22,7 +22,7 @@ func main() {
 	connectionString := "amqp://guest:guest@localhost:5672/"
 	con, err := amqp.Dial(connectionString)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to connect: %s\n", err)
 	}
 	defer con.Close()
 
@@ -106,6 +106,7 @@ func main() {
 		ps.DURABLE,
 		func(logg routing.GameLog) ps.AckType {
 			defer fmt.Print("> ")
+			log.Printf("Log recieved: %s\n", logg.Message)
 			gamelogic.WriteLog(logg)
 			return ps.Ack
 		},
